@@ -4,7 +4,16 @@ import pytest
 
 from churn.data import make_dataset
 from churn.features import FEATURE_COLUMNS, TARGET, add_derived, prepare
-from churn.model import evaluate, load_model, make_pipeline, predict_frame, save_model, top_features, train_all, MODELS
+from churn.model import (
+    MODELS,
+    evaluate,
+    load_model,
+    make_pipeline,
+    predict_frame,
+    save_model,
+    top_features,
+    train_all,
+)
 
 
 @pytest.fixture(scope="module")

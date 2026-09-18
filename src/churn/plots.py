@@ -5,9 +5,14 @@ from __future__ import annotations
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")  # noqa: E402  (headless: must be set before pyplot)
 import matplotlib.pyplot as plt  # noqa: E402
-from sklearn.metrics import ConfusionMatrixDisplay, PrecisionRecallDisplay, RocCurveDisplay  # noqa: E402
+from sklearn.metrics import (  # noqa: E402
+    ConfusionMatrixDisplay,
+    PrecisionRecallDisplay,
+    RocCurveDisplay,
+)
 
 STYLE = {"figure.dpi": 130, "axes.grid": True, "grid.alpha": 0.25, "axes.spines.top": False,
          "axes.spines.right": False, "font.size": 9}
