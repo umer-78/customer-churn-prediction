@@ -5,9 +5,9 @@
 ![scikit-learn](https://img.shields.io/badge/scikit--learn-1.3%2B-f7931e)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-An end-to-end machine learning project: generate a realistic customer dataset,
-engineer features, compare four models on the same split, report honest metrics,
-and score new customers from the command line.
+Churn prediction, end to end: generate a realistic customer dataset, engineer
+features, compare four models on the same split, report honest metrics, and
+score new customers from the command line.
 
 ![Model curves](reports/curves.png)
 
