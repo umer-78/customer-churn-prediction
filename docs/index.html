@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>churn — Interactive Customer Churn Prediction Demo</title>
+  <meta name="description" content="Enter customer features and get a churn probability with per-feature contributions from a logistic model trained live in the browser.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%232563eb'/><text x='16' y='22' font-size='16' text-anchor='middle' fill='white' font-family='monospace'>%</text></svg>">
+  <style>
+    :root {
+      --bg: #f6f7f9; --surface: #ffffff; --surface-2: #eef0f4; --border: #dde1e8;
+      --text: #16181d; --muted: #5d6573; --accent: #2563eb; --accent-ink: #ffffff;
+      --good: #15803d; --bad: #b91c1c; --radius: 12px;
+      --shadow: 0 1px 2px rgb(16 24 40 / 0.06), 0 4px 16px rgb(16 24 40 / 0.05);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color-scheme: light;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0e1116; --surface: #161a21; --surface-2: #1d222b; --border: #2a303b;
+        --text: #e8eaee; --muted: #9aa3b2; --accent: #60a5fa; --accent-ink: #0b1220;
+        --good: #4ade80; --bad: #f87171; --shadow: none; color-scheme: dark;
+      }
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; }
+    body { font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
+    a { color: var(--accent); }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 24px 16px 48px; }
+    header.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+    header.top h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
+    header.top p { margin: 2px 0 0; color: var(--muted); }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow); min-width: 0; margin-bottom: 16px; }
+    .card h2 { font-size: 15px; margin: 0 0 12px; }
+    label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+    input, select, button { font: inherit; color: inherit; }
+    input, select {
+      width: 100%; padding: 9px 11px; border-radius: 9px;
+      border: 1px solid var(--border); background: var(--surface-2); outline: none; min-width: 0;
+    }
+    input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+    button { cursor: pointer; border: 1px solid var(--border); background: var(--surface-2); padding: 9px 14px; border-radius: 9px; font-weight: 600; }
+    button.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+    .form-grid { display: grid; gap: 12px; grid-template-columns: 1fr; }
+    @media (min-width: 640px) { .form-grid { grid-template-columns: repeat(3, 1fr); } }
+    .form-grid .full { grid-column: 1 / -1; }
+    .muted { color: var(--muted); }
+    .mono { font-family: var(--mono); }
+    footer { margin-top: 32px; color: var(--muted); font-size: 13px; text-align: center; }
+    .result { display: grid; gap: 16px; grid-template-columns: 1fr; align-items: start; }
+    @media (min-width: 720px) { .result { grid-template-columns: 220px 1fr; } }
+    .gauge { text-align: center; padding: 16px; background: var(--surface-2); border-radius: 12px; }
+    .gauge .pct { font-family: var(--mono); font-size: 44px; font-weight: 800; line-height: 1; }
+    .gauge .risk { display: inline-block; margin-top: 8px; padding: 4px 12px; border-radius: 99px; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .gauge .risk.low { background: color-mix(in srgb, var(--good) 18%, transparent); color: var(--good); }
+    .gauge .risk.medium { background: color-mix(in srgb, #f59e0b 22%, transparent); color: #b45309; }
+    .gauge .risk.high { background: color-mix(in srgb, var(--bad) 18%, transparent); color: var(--bad); }
+    .gauge .sub { font-size: 13px; color: var(--muted); margin-top: 6px; }
+    .contrib { list-style: none; margin: 0; padding: 0; }
+    .contrib li { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 8px 0; border-bottom: 1px solid var(--border); align-items: center; }
+    .contrib li:last-child { border-bottom: 0; }
+    .contrib .name { font-size: 14px; }
+    .contrib .val { font-family: var(--mono); font-size: 13px; font-weight: 700; text-align: right; }
+    .contrib .val.pos { color: var(--bad); }
+    .contrib .val.neg { color: var(--good); }
+    .contrib .barwrap { grid-column: 1 / -1; height: 6px; background: var(--surface-2); border-radius: 99px; overflow: hidden; position: relative; }
+    .contrib .barwrap i { display: block; height: 100%; border-radius: 99px; }
+    .stats { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+    .stat { background: var(--surface-2); border-radius: 8px; padding: 8px 12px; min-width: 100px; flex: 1; }
+    .stat .k { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .stat .v { font-family: var(--mono); font-size: 18px; font-weight: 700; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+    td.num, th.num { text-align: right; font-family: var(--mono); }
+    .table-wrap { overflow-x: auto; }
+    .check { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .check label { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 14px; color: var(--text); cursor: pointer; }
+    .check input { width: auto; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <div>
+        <h1>churn</h1>
+        <p>Score a customer's churn risk with a logistic model trained live in your browser — and see exactly which features push the probability up or down.</p>
+      </div>
+      <a href="https://github.com/umer-78/customer-churn-prediction">Source on GitHub</a>
+    </header>
+
+    <section class="card" aria-labelledby="form-h">
+      <h2 id="form-h">Score a customer</h2>
+      <p class="muted" style="margin-top:0">A logistic regression is trained on ~2,000 synthetic customers generated from the same relationships as <code class="mono">src/churn/data.py</code> when you press Score (or change a field after the first run). Contributions are coefficient × (feature − mean) on the log-odds scale.</p>
+      <div class="form-grid" id="form">
+        <div>
+          <label for="tenure">Tenure (months)</label>
+          <input id="tenure" type="number" min="0" max="72" value="8">
+        </div>
+        <div>
+          <label for="monthly">Monthly charges ($)</label>
+          <input id="monthly" type="number" min="15" max="130" value="85">
+        </div>
+        <div>
+          <label for="calls">Support calls (6m)</label>
+          <input id="calls" type="number" min="0" max="15" value="3">
+        </div>
+        <div>
+          <label for="lates">Late payments (12m)</label>
+          <input id="lates" type="number" min="0" max="10" value="2">
+        </div>
+        <div>
+          <label for="contract">Contract</label>
+          <select id="contract">
+            <option value="m2m" selected>Month-to-month</option>
+            <option value="one">One year</option>
+            <option value="two">Two year</option>
+          </select>
+        </div>
+        <div>
+          <label for="internet">Internet</label>
+          <select id="internet">
+            <option value="fibre" selected>Fibre optic</option>
+            <option value="dsl">DSL</option>
+            <option value="none">None</option>
+          </select>
+        </div>
+        <div>
+          <label for="payment">Payment method</label>
+          <select id="payment">
+            <option value="echq" selected>Electronic cheque</option>
+            <option value="bank">Bank transfer</option>
+            <option value="card">Credit card</option>
+            <option value="post">Post</option>
+          </select>
+        </div>
+        <div>
+          <label for="services">Extra services</label>
+          <input id="services" type="number" min="0" max="5" value="1">
+        </div>
+        <div>
+          <label>Flags</label>
+          <div class="check">
+            <label><input type="checkbox" id="senior"> Senior</label>
+            <label><input type="checkbox" id="deps" checked> Dependents</label>
+            <label><input type="checkbox" id="paperless" checked> Paperless</label>
+          </div>
+        </div>
+        <div class="full">
+          <button class="primary" id="scoreBtn" style="width:100%">Score customer</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="out-h">
+      <h2 id="out-h">Prediction</h2>
+      <div class="result">
+        <div class="gauge">
+          <div class="pct" id="pct">—</div>
+          <div class="risk low" id="risk">low</div>
+          <div class="sub" id="verdict">Press Score customer</div>
+        </div>
+        <div>
+          <h2 style="font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em;margin-top:0">Feature contributions (log-odds)</h2>
+          <ul class="contrib" id="contrib"><li class="muted">No prediction yet.</li></ul>
+        </div>
+      </div>
+      <div class="stats" id="stats"></div>
+    </section>
+
+    <section class="card" aria-labelledby="why-h">
+      <h2 id="why-h">What drives churn in this data</h2>
+      <ol class="muted" style="margin:0; padding-left:1.2em; line-height:1.7">
+        <li><strong>Contract type</strong> — month-to-month customers churn about 2.6× as often as two-year ones.</li>
+        <li><strong>Tenure</strong> — 49.8% in the first six months against 15.2% after four years.</li>
+        <li><strong>Spend per month of tenure</strong>, support calls, late payments and paying by electronic cheque.</li>
+      </ol>
+      <p class="muted" style="margin-bottom:0">The label is drawn from a logistic model plus noise (σ ≈ 0.55), so no model passes ~0.80 ROC-AUC on this data. A model claiming 0.99 is leaking. PR-AUC is the headline number because churners are the minority class.</p>
+    </section>
+
+    <section class="card" aria-labelledby="bench-h">
+      <h2 id="bench-h">Held-out results (Python package)</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>model</th><th class="num">accuracy</th><th class="num">precision</th><th class="num">recall</th><th class="num">f1</th><th class="num">roc_auc</th><th class="num">pr_auc</th></tr></thead>
+          <tbody>
+            <tr><td>baseline (always stay)</td><td class="num">0.611</td><td class="num">0.000</td><td class="num">0.000</td><td class="num">0.000</td><td class="num">0.500</td><td class="num">0.389</td></tr>
+            <tr><td>logistic regression</td><td class="num">0.688</td><td class="num">0.584</td><td class="num">0.690</td><td class="num">0.632</td><td class="num">0.769</td><td class="num">0.684</td></tr>
+            <tr><td>random forest</td><td class="num">0.685</td><td class="num">0.585</td><td class="num">0.655</td><td class="num">0.618</td><td class="num">0.753</td><td class="num">0.667</td></tr>
+            <tr><td>gradient boosting</td><td class="num">0.718</td><td class="num">0.661</td><td class="num">0.565</td><td class="num">0.609</td><td class="num">0.770</td><td class="num">0.681</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="muted" style="margin-bottom:0">Baseline accuracy is 61% by predicting "nobody churns" — which is why accuracy alone is a bad way to judge this problem.</p>
+    </section>
+
+    <footer>13 tests · Python 3.10+ · scikit-learn · Built by <a href="https://github.com/umer-78">Umer Hashmi</a></footer>
+  </div>
+
+  <script>
+    // === Synthetic data matching src/churn/data.py generative model ===
+    function mulberry32(a) {
+      return function () {
+        let t = (a += 0x6d2b79f5);
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    function gauss(rng) {
+      let u = 0, v = 0;
+      while (u === 0) u = rng();
+      while (v === 0) v = rng();
+      return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+    }
+    function choice(rng, arr, p) {
+      const r = rng();
+      let acc = 0;
+      for (let i = 0; i < arr.length; i++) { acc += p[i]; if (r < acc) return arr[i]; }
+      return arr[arr.length - 1];
+    }
+
+    const CONTRACTS = ["Month-to-month", "One year", "Two year"];
+    const INTERNET = ["DSL", "Fibre optic", "None"];
+    const PAYMENT = ["Bank transfer", "Credit card", "Electronic cheque", "Post"];
+
+    // Feature names used by the model (aligned with features.py + one-hot)
+    const FEATURE_NAMES = [
+      "tenure_months", "monthly_charges", "total_charges", "support_calls_6m",
+      "late_payments_12m", "extra_services", "charges_per_month_of_tenure", "calls_per_year",
+      "contract=Month-to-month", "contract=One year", "contract=Two year",
+      "internet=Fibre optic", "internet=None",
+      "payment=Electronic cheque",
+      "tenure_bucket=0-6m", "tenure_bucket=6-12m", "tenure_bucket=1-2y", "tenure_bucket=2-4y",
+      "paperless_billing", "senior_citizen", "has_dependents",
+    ];
+    const N = FEATURE_NAMES.length;
+
+    function makeRow(rng) {
+      const tenure = Math.max(0, Math.min(72, Math.round(gammaSample(rng, 2.0, 9.0))));
+      const contract = choice(rng, CONTRACTS, [0.55, 0.25, 0.2]);
+      const internet = choice(rng, INTERNET, [0.35, 0.45, 0.2]);
+      let monthly = internet === "Fibre optic" ? gauss(rng) * 18 + 85
+        : internet === "DSL" ? gauss(rng) * 14 + 58 : gauss(rng) * 7 + 22;
+      monthly = Math.round(Math.max(15, Math.min(130, monthly)) * 100) / 100;
+      const calls = poisson(rng, internet === "Fibre optic" ? 1.3 : 0.7);
+      const lates = poisson(rng, 0.5);
+      const paperless = rng() < 0.6;
+      const payment = choice(rng, PAYMENT, [0.22, 0.25, 0.35, 0.18]);
+      const senior = rng() < 0.16;
+      const deps = rng() < 0.3;
+      const services = Math.floor(rng() * 6);
+      const total = Math.round(monthly * Math.max(tenure, 1) * (1 + gauss(rng) * 0.03) * 100) / 100;
+
+      // true log-odds (generator)
+      const z =
+        -1.15
+        - 0.045 * tenure
+        + 0.016 * (monthly - 60)
+        + 0.42 * calls
+        + 0.30 * lates
+        + (contract === "Month-to-month" ? 1.25 : contract === "One year" ? 0.15 : -0.65)
+        + (internet === "Fibre optic" ? 0.55 : internet === "None" ? -0.35 : 0)
+        + (payment === "Electronic cheque" ? 0.45 : 0)
+        + 0.25 * (senior ? 1 : 0)
+        - 0.30 * (deps ? 1 : 0)
+        - 0.10 * services
+        + 0.20 * (paperless ? 1 : 0)
+        + gauss(rng) * 0.55;
+      const churn = rng() < 1 / (1 + Math.exp(-z)) ? 1 : 0;
+
+      return { raw: { tenure, monthly, total, calls, lates, services, contract, internet, payment, paperless, senior, deps }, churn };
+    }
+
+    function gammaSample(rng, k, theta) {
+      // Marsaglia-Tsang for shape >= 1, then boost for shape < 1
+      const shape = k;
+      if (shape < 1) {
+        const u = rng();
+        return gammaSample(rng, shape + 1, theta) * Math.pow(u, 1 / shape);
+      }
+      const d = shape - 1 / 3;
+      const c = 1 / Math.sqrt(9 * d);
+      for (;;) {
+        let x, v;
+        do { x = gauss(rng); v = 1 + c * x; } while (v <= 0);
+        v = v * v * v;
+        const u = rng();
+        if (u < 1 - 0.0331 * x * x * x * x) return d * v * theta;
+        if (Math.log(u) < 0.5 * x * x + d * (1 - v + Math.log(v))) return d * v * theta;
+      }
+    }
+    function poisson(rng, lambda) {
+      const L = Math.exp(-lambda);
+      let k = 0, p = 1;
+      do { k++; p *= rng(); } while (p > L);
+      return k - 1;
+    }
+
+    function encode(raw) {
+      const tenure = raw.tenure;
+      const cpmt = raw.total / Math.max(tenure, 1);
+      const x = new Array(N).fill(0);
+      x[0] = tenure;
+      x[1] = raw.monthly;
+      x[2] = raw.total;
+      x[3] = raw.calls;
+      x[4] = raw.lates;
+      x[5] = raw.services;
+      x[6] = cpmt;
+      x[7] = raw.calls * 2;
+      x[8] = raw.contract === "Month-to-month" ? 1 : 0;
+      x[9] = raw.contract === "One year" ? 1 : 0;
+      x[10] = raw.contract === "Two year" ? 1 : 0;
+      x[11] = raw.internet === "Fibre optic" ? 1 : 0;
+      x[12] = raw.internet === "None" ? 1 : 0;
+      x[13] = raw.payment === "Electronic cheque" ? 1 : 0;
+      x[14] = tenure <= 6 ? 1 : 0;
+      x[15] = tenure > 6 && tenure <= 12 ? 1 : 0;
+      x[16] = tenure > 12 && tenure <= 24 ? 1 : 0;
+      x[17] = tenure > 24 && tenure <= 48 ? 1 : 0;
+      x[18] = raw.paperless ? 1 : 0;
+      x[19] = raw.senior ? 1 : 0;
+      x[20] = raw.deps ? 1 : 0;
+      return x;
+    }
+
+    // === Train logistic regression (batch GD with standardisation) ===
+    let model = null; // { mean, std, w, b, trained }
+
+    function trainModel(n = 2000, epochs = 300, lr = 0.5, seed = 42) {
+      const rng = mulberry32(seed);
+      const rows = [];
+      for (let i = 0; i < n; i++) rows.push(makeRow(rng));
+      const X = rows.map((r) => encode(r.raw));
+      const y = rows.map((r) => r.churn);
+
+      // standardise
+      const mean = new Array(N).fill(0);
+      const std = new Array(N).fill(0);
+      for (let j = 0; j < N; j++) {
+        let s = 0;
+        for (let i = 0; i < n; i++) s += X[i][j];
+        mean[j] = s / n;
+        let v = 0;
+        for (let i = 0; i < n; i++) v += (X[i][j] - mean[j]) ** 2;
+        std[j] = Math.sqrt(v / n) || 1;
+      }
+      const Z = X.map((row) => row.map((v, j) => (v - mean[j]) / std[j]));
+
+      const w = new Array(N).fill(0);
+      let b = 0;
+      const ybar = y.reduce((a, c) => a + c, 0) / n;
+      b = Math.log(ybar / (1 - ybar));
+
+      const l2 = 0.01;
+      for (let ep = 0; ep < epochs; ep++) {
+        const gw = new Array(N).fill(0);
+        let gb = 0;
+        for (let i = 0; i < n; i++) {
+          let z = b;
+          for (let j = 0; j < N; j++) z += w[j] * Z[i][j];
+          const p = 1 / (1 + Math.exp(-Math.max(-30, Math.min(30, z))));
+          const err = p - y[i];
+          for (let j = 0; j < N; j++) gw[j] += err * Z[i][j];
+          gb += err;
+        }
+        for (let j = 0; j < N; j++) w[j] -= lr * (gw[j] / n + l2 * w[j]);
+        b -= lr * (gb / n);
+      }
+
+      // quick metrics on a holdout
+      const holdN = 500;
+      let correct = 0, tp = 0, fp = 0, fn = 0;
+      const rng2 = mulberry32(seed + 1);
+      for (let i = 0; i < holdN; i++) {
+        const r = makeRow(rng2);
+        const x = encode(r.raw);
+        const p = predictRaw(x);
+        const pred = p >= 0.5 ? 1 : 0;
+        if (pred === r.churn) correct++;
+        if (pred && r.churn) tp++;
+        if (pred && !r.churn) fp++;
+        if (!pred && r.churn) fn++;
+      }
+      const precision = tp + fp ? tp / (tp + fp) : 0;
+      const recall = tp + fn ? tp / (tp + fn) : 0;
+      const f1 = precision + recall ? (2 * precision * recall) / (precision + recall) : 0;
+
+      model = { mean, std, w, b, metrics: { accuracy: correct / holdN, precision, recall, f1 } };
+      return model;
+    }
+
+    function predictRaw(xStd) {
+      let z = model.b;
+      for (let j = 0; j < N; j++) z += model.w[j] * xStd[j];
+      return 1 / (1 + Math.exp(-Math.max(-30, Math.min(30, z))));
+    }
+
+    function standardise(x) {
+      return x.map((v, j) => (v - model.mean[j]) / model.std[j]);
+    }
+
+    // === UI ===
+    function readForm() {
+      const tenure = Number(document.getElementById("tenure").value) || 0;
+      const monthly = Number(document.getElementById("monthly").value) || 0;
+      const calls = Number(document.getElementById("calls").value) || 0;
+      const lates = Number(document.getElementById("lates").value) || 0;
+      const contract = document.getElementById("contract").value;
+      const internet = document.getElementById("internet").value;
+      const payment = document.getElementById("payment").value;
+      const services = Number(document.getElementById("services").value) || 0;
+      const senior = document.getElementById("senior").checked;
+      const deps = document.getElementById("deps").checked;
+      const paperless = document.getElementById("paperless").checked;
+      const cMap = { m2m: "Month-to-month", one: "One year", two: "Two year" };
+      const iMap = { fibre: "Fibre optic", dsl: "DSL", none: "None" };
+      const pMap = { echq: "Electronic cheque", bank: "Bank transfer", card: "Credit card", post: "Post" };
+      const total = monthly * Math.max(tenure, 1);
+      return {
+        tenure, monthly, total, calls, lates, services,
+        contract: cMap[contract], internet: iMap[internet], payment: pMap[payment],
+        paperless, senior, deps,
+      };
+    }
+
+    function score() {
+      if (!model) trainModel();
+      const raw = readForm();
+      const x = encode(raw);
+      const xs = standardise(x);
+      const p = predictRaw(xs);
+      const contributions = FEATURE_NAMES.map((name, j) => ({
+        name,
+        // contribution to log-odds relative to training mean
+        value: model.w[j] * xs[j],
+        weight: model.w[j],
+      }));
+      contributions.sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
+
+      const pct = document.getElementById("pct");
+      const risk = document.getElementById("risk");
+      const verdict = document.getElementById("verdict");
+      pct.textContent = (p * 100).toFixed(1) + "%";
+      const band = p < 0.33 ? "low" : p < 0.66 ? "medium" : "high";
+      risk.textContent = band;
+      risk.className = "risk " + band;
+      verdict.textContent = p >= 0.5 ? "flagged as churn risk" : "predicted to stay";
+
+      const maxAbs = Math.max(...contributions.map((c) => Math.abs(c.value)), 0.01);
+      document.getElementById("contrib").innerHTML = contributions.slice(0, 10).map((c) => {
+        const pctW = (Math.abs(c.value) / maxAbs) * 100;
+        const color = c.value >= 0 ? "var(--bad)" : "var(--good)";
+        return `<li>
+          <span class="name">${c.name}</span>
+          <span class="val ${c.value >= 0 ? "pos" : "neg"}">${c.value >= 0 ? "+" : ""}${c.value.toFixed(3)}</span>
+          <span class="barwrap"><i style="width:${pctW}%;background:${color}"></i></span>
+        </li>`;
+      }).join("");
+
+      document.getElementById("stats").innerHTML = `
+        <div class="stat"><div class="k">log-odds z</div><div class="v">${(model.b + contributions.reduce((s, c) => s + c.value, 0)).toFixed(3)}</div></div>
+        <div class="stat"><div class="k">hold-out accuracy</div><div class="v">${(model.metrics.accuracy * 100).toFixed(1)}%</div></div>
+        <div class="stat"><div class="k">hold-out F1</div><div class="v">${model.metrics.f1.toFixed(3)}</div></div>
+        <div class="stat"><div class="k">train rows</div><div class="v">2,000</div></div>
+      `;
+    }
+
+    let debounce = null;
+    document.getElementById("scoreBtn").addEventListener("click", () => {
+      document.getElementById("scoreBtn").textContent = "Training…";
+      setTimeout(() => {
+        score();
+        document.getElementById("scoreBtn").textContent = "Score customer";
+      }, 20);
+    });
+    document.getElementById("form").addEventListener("change", () => {
+      clearTimeout(debounce);
+      debounce = setTimeout(score, 150);
+    });
+
+    score();
+  </script>
+</body>
+</html>
