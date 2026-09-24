@@ -1,5 +1,7 @@
 # Customer Churn Prediction
 
+**Live demo:** https://umer-78.github.io/customer-churn-prediction/
+
 [![CI](https://github.com/umer-78/customer-churn-prediction/actions/workflows/ci.yml/badge.svg)](https://github.com/umer-78/customer-churn-prediction/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![scikit-learn](https://img.shields.io/badge/scikit--learn-1.3%2B-f7931e)
