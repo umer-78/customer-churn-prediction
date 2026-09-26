@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "churn"
+name = "customer-churn-prediction"
 version = "1.0.0"
-description = "End-to-end customer churn prediction: data, features, model comparison, evaluation and a prediction CLI."
+description = "End-to-end churn prediction in Python: a synthetic, reproducible dataset, a feature pipeline, three models and a majority-class baseline compared on one split, charts, a model card and a scoring CLI."
 readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "Umer Hashmi" }]
