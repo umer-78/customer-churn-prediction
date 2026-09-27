@@ -3,6 +3,8 @@
 **Live demo:** https://umer-78.github.io/customer-churn-prediction/
 
 [![CI](https://github.com/umer-78/customer-churn-prediction/actions/workflows/ci.yml/badge.svg)](https://github.com/umer-78/customer-churn-prediction/actions/workflows/ci.yml)
+
+[![Customer Churn Prediction: the live demo](.github/preview.jpg)](https://umer-78.github.io/customer-churn-prediction/)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![scikit-learn](https://img.shields.io/badge/scikit--learn-1.3%2B-f7931e)
 ![License](https://img.shields.io/badge/license-MIT-green)
